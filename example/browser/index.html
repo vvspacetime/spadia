@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+</head>
+<body>
+<button onclick="start()">start</button>
+</body>
+<script>
+    async function start() {
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+        pc1 = new RTCPeerConnection();
+        stream.getTracks().forEach(track => pc1.addTrack(track, stream));
+        pc1.createOffer().then(async(offer) => {
+            pc1.setLocalDescription(offer);
+            const res = await fetch('http://127.0.0.1:8080/post', {
+                method: 'POST',
+                mode: 'cors',
+                body: offer.sdp,
+            })
+            const answer = await res.text()
+            console.log(answer)
+            pc1.setRemoteDescription({
+                "sdp": answer,
+                "type": "answer"
+            })
+        })
+    }
+</script>
+</html>
