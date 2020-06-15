@@ -54,7 +54,7 @@ private:
     std::map<std::string, std::shared_ptr<PeerConnection>> pcTable;
     sockaddr_in sockAddr_; // don't connect, only for recv stun
     uv_udp_t socket_;
-    std::string candidateIp_ = "127.0.0.1";
+    std::string candidateIp_ = "192.168.73.128"; // shouldn't 127.0.0.1
     uint32_t port_ = 8080;
     uv_udp_send_t sendT_;
 };

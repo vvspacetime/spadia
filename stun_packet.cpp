@@ -138,14 +138,14 @@ int StunPacket::Serialize(uint8_t *&data, const std::string &pwd) {
     assert(len == HMACSize);
     attrSize += AttrHeaderSize + HMACSize;
 
-    webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+2, attrSize + AttrHeaderSize + 4);
+    webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+2, attrSize + AttrHeaderSize + FingerprintSize);
     // write fingerprint
     {
         uint32_t crc32 = CRC32::GetInstance().CalculateXORCRC(data, attrSize + StunHeaderSize);
         webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+StunHeaderSize+attrSize, 0x8028);
-        webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+StunHeaderSize+attrSize+2, 4);
+        webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+StunHeaderSize+attrSize+2, FingerprintSize);
         webrtc::ByteWriter<uint32_t>::WriteBigEndian(data+StunHeaderSize+attrSize+AttrHeaderSize, crc32);
-        attrSize += AttrHeaderSize + 4;
+        attrSize += AttrHeaderSize + FingerprintSize;
     }
 
 

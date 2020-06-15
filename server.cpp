@@ -30,11 +30,12 @@ Server::Server(uint32_t port) : port_(port) {
     loop_ = Pool::GetInstance().GetLoop();
     socket_.data = this;
     // todo run in loop
-    sleep(2);
-    uv_udp_init(loop_, &socket_);
-    uv_ip4_addr("0.0.0.0", port, &sockAddr_);
-    uv_udp_bind(&socket_, (const struct sockaddr *)&sockAddr_, UV_UDP_REUSEADDR);
-    uv_udp_recv_start(&socket_, buf_alloc_s, read_s);
+    Pool::Async(loop_, [=]() {
+        uv_udp_init(loop_, &socket_);
+        uv_ip4_addr("0.0.0.0", port, &sockAddr_);
+        uv_udp_bind(&socket_, (const struct sockaddr *)&sockAddr_, UV_UDP_REUSEADDR);
+        uv_udp_recv_start(&socket_, buf_alloc_s, read_s);
+    });
 }
 
 void Server::Start() {
