@@ -47,7 +47,7 @@ public:
     }
 
     const uint32_t GetPort() {
-        return port_;
+        return port_ ++;
     }
 private:
     uv_loop_t* loop_;
@@ -56,7 +56,8 @@ private:
     uv_udp_t socket_;
     std::string candidateIp_ = "192.168.73.128"; // shouldn't 127.0.0.1
     uint32_t port_ = 8080;
-    uv_udp_send_t sendT_;
+    bool samePort = true;
+    bool udpConnect = false;
 };
 
 #endif //TEST_SERVER_H

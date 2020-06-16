@@ -37,6 +37,10 @@ public:
     uint8_t* Payload() { return data_ + payloadOffset_; }
     int PayloadSize() { return payloadSize_; }
     uint8_t PayloadType() { return payloadType_; }
+    uint32_t SSRC() { return ssrc_; }
+    uint16_t SeqNum() { return seqNum_; }
+    uint8_t *Data() { return data_;}
+    int Size() { return size_; }
 private:
     int payloadOffset_;
     int payloadSize_;

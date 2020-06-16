@@ -172,17 +172,18 @@ void RTPPacket::Dump() {
 
 int RTPPacket::Serialize(uint8_t *&data, const std::vector<RTPExtension *> &exts, const RTPSession &session) {
     // todo exts
-    auto len = 3 + payloadSize_; // header + payload, ignore extensions
-    data = (uint8_t*)malloc(len);
-    webrtc::ByteWriter<uint8_t>::WriteBigEndian(data, 0x10);
-    data += 1;
-    webrtc::ByteWriter<uint8_t>::WriteBigEndian(data, maker_ << 7 | session.pt);
-    data += 1;
-    webrtc::ByteWriter<uint16_t>::WriteBigEndian(data, session.seq);
-    data += 2;
-    webrtc::ByteWriter<uint32_t>::WriteBigEndian(data, timestamp_);
-    data += 4;
-    memcpy(data, Payload(), PayloadSize());
-    return 0;
+    auto len = 8 + payloadSize_; // header + payload, ignore extensions
+    auto buffer = (uint8_t*)malloc(len);
+    data = buffer;
+    webrtc::ByteWriter<uint8_t>::WriteBigEndian(buffer, 0x10);
+    buffer += 1;
+    webrtc::ByteWriter<uint8_t>::WriteBigEndian(buffer, maker_ << 7 | session.pt);
+    buffer += 1;
+    webrtc::ByteWriter<uint16_t>::WriteBigEndian(buffer, session.seq);
+    buffer += 2;
+    webrtc::ByteWriter<uint32_t>::WriteBigEndian(buffer, timestamp_);
+    buffer += 4;
+    memcpy(buffer, Payload(), PayloadSize());
+    return len;
 }
 

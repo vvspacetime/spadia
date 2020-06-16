@@ -45,6 +45,8 @@ public:
      * from socket
      */
     void OnSocketData(char* data, ssize_t size, sockaddr_in* rmtSock);
+
+    void Start();
     /**
     *   when receive binding response
     */
@@ -81,7 +83,6 @@ private:
     RTPSessionManager sessionManager;
     std::string id_;
     uv_udp_t socket_;
-    uv_udp_send_t sendT_;
     uv_timer_t iceTimer;
     uv_loop_t* loop_;
     std::function<void (std::shared_ptr<MediaStream>)> callback_;
@@ -93,6 +94,8 @@ private:
     std::string remotePassword_;
     bool active_;
     uint64_t lastPacketRecvTimeMS_ = 0;
+    uint16_t port_;
+    sockaddr_in lastRemote_;
 };
 
 

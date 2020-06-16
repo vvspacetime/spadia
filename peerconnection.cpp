@@ -12,8 +12,10 @@ void buf_alloc(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
 }
 
 void read_u(uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf, const struct sockaddr* addr, unsigned flags) {
-    printf("read: %lu\n", nread);
     if (nread > 0 && handle->data) {
+        char ipName[40];
+        uv_ip4_name((const sockaddr_in *)(addr), ipName, 40);
+        VLOG(9) << "read_u from:" << ipName << " port:" << get_port(((const sockaddr_in *)addr)->sin_port) << " len:" << nread;
         auto pc = (PeerConnection *) handle->data;
         pc->OnSocketData(buf->base, nread, (sockaddr_in*)addr);
     }
@@ -23,7 +25,7 @@ void read_u(uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf, const struct s
 }
 
 void send_u(uv_udp_send_t* req, int status) {
-
+    delete req;
 }
 
 void ontimer(uv_timer_t* handle) {
@@ -40,6 +42,9 @@ PeerConnection::PeerConnection() {
 
     socket_.data = this;
     iceTimer.data = this;
+    port_ = Server::GetInstance().GetPort();
+
+
 }
 
 
@@ -54,20 +59,45 @@ PeerConnection::~PeerConnection() {
     iceTimer.data = nullptr;
 }
 
+void PeerConnection::Start() {
+    Pool::Async(loop_, [pc=shared_from_this(), this]() {
+        sockaddr_in send_addr;
+        uv_ip4_addr("0.0.0.0", port_, &send_addr);
+        uv_udp_bind(&socket_, (const sockaddr*)&send_addr, UV_UDP_REUSEADDR);
+        uv_udp_recv_start(&socket_, buf_alloc, read_u);
+        uv_timer_start(&iceTimer, ontimer, 0, 2500);
+    });
+}
 
 void PeerConnection::Active(sockaddr_in *rmtSock) {
+    // todo udp connect
+    return;
     if (!active_) {
         LOG(INFO) << "PeerConnection::Active | " << id_;
         // todo connect new sock addr
         active_ = true;
-        Pool::Async(loop_, [pc=shared_from_this(), this, remote=&rmtSock]() {
+        Pool::Async(loop_, [pc=shared_from_this(), this, remote=*rmtSock]() {
             sockaddr_in send_addr;
-            uv_ip4_addr("0.0.0.0", Server::GetInstance().GetPort(), &send_addr);
+            uv_ip4_addr("0.0.0.0", port_, &send_addr);
             uv_udp_bind(&socket_, (const sockaddr*)&send_addr, UV_UDP_REUSEADDR);
+            char ipName[40];
+            uv_ip4_name((const sockaddr_in *)(&remote), ipName, 40);
+//            VLOG(9) << "PeerConnection::Active | " << "connect to:" << ipName << " port:" << get_port(remote.sin_port) << " id:" << id_;
             uv_udp_connect(&socket_, (const sockaddr*)&remote);
             uv_udp_recv_start(&socket_, buf_alloc, read_u);
             uv_timer_start(&iceTimer, ontimer, 0, 2500);
         });
+    } else {
+//        if (get_time_ms() - lastPacketRecvTimeMS_ <= 2000) { // if > 2s no data, switch connection
+//            return;
+//        }
+//        Pool::Async(loop_, [pc=shared_from_this(), this, remote=*rmtSock]() {
+//            char ipName[40];
+//            uv_ip4_name((const sockaddr_in *)(&remote), ipName, 40);
+//            VLOG(9) << "PeerConnection::Active | " << "switch connect to:" << ipName << " port:" << remote.sin_port << " id:" << id_;
+//            uv_udp_connect(&socket_, nullptr); //disconnect
+//            uv_udp_connect(&socket_, (const sockaddr*)&remote);
+//        });
     }
 }
 
@@ -87,21 +117,21 @@ void PeerConnection::OnIceTimer() {
 }
 
 void PeerConnection::Destroy() {
-    LOG(INFO) << "PeerConnection::Destroy | id_";
+    LOG(INFO) << "PeerConnection::Destroy | id_:" << id_;
     Server::GetInstance().RemovePC(localUsername_, remoteUsername_);
 }
 
 void PeerConnection::handleIncomingRTCPData(uint8_t *data, ssize_t size) {
-    VLOG(9) << "PeerConnection::handleIncomingRTCPData | size:" << size;
-    auto packets = RTCPPacket::Parse(data, size);
-    for (auto& pkt : packets) {
+    VLOG(9) << "PeerConnection::handleIncomingRTCPData | size:" << size << " id:" << id_;
+//    auto packets = RTCPPacket::Parse(data, size);
+//    for (auto& pkt : packets) {
         // todo response xr
         // todo transmit fir to sender
-    }
+//    }
 }
 
 void PeerConnection::handleIncomingRTPData(uint8_t *data, ssize_t size) {
-    VLOG(9) << "PeerConnection::handleIncomingRTPData | size:" << size;
+    VLOG(9) << "PeerConnection::handleIncomingRTPData | size:" << size << " id:" << id_;
     auto packet = std::make_shared<RTPPacket>();
     packet->Parse(data, size);
 
@@ -113,7 +143,9 @@ void PeerConnection::handleIncomingRTPData(uint8_t *data, ssize_t size) {
 
 
 void PeerConnection::OnSocketData(char *data, ssize_t size, sockaddr_in* rmtSock) {
-    VLOG(9) << "PeerConnection::OnSocketData | size:" << size;
+    VLOG(9) << "PeerConnection::OnSocketData | size:" << size << " id:" << id_;
+    lastRemote_ = *rmtSock;
+    lastPacketRecvTimeMS_ = get_time_ms();
     if (StunPacket::IsStun((uint8_t*)data, size)) {
         auto p = StunPacket::Parse((uint8_t*)data, size);
         auto q = p->MakeResponse();
@@ -122,7 +154,9 @@ void PeerConnection::OnSocketData(char *data, ssize_t size, sockaddr_in* rmtSock
         uv_buf_t buf[1];
         buf[0].len = size;
         buf[0].base = (char*)data;
-        uv_udp_send(&sendT_, &socket_, buf, 1, (const sockaddr *) rmtSock, send_u);
+        auto st = new uv_udp_send_t;
+        uv_udp_send(st, &socket_, buf, 1, (const sockaddr*)&lastRemote_, send_u);
+        free(data);
         return;
     }
 
@@ -134,13 +168,27 @@ void PeerConnection::OnSocketData(char *data, ssize_t size, sockaddr_in* rmtSock
 }
 
 void PeerConnection::OnMediaData(std::shared_ptr<RTPPacket> pkt) {
-    uint8_t* data;
-//    int size = pkt->Serialize(data, );
-//    sendData(data, size);
+    VLOG(9) << "PeerConnection::OnMediaData | id:" << id_;
+//    uint8_t* data;
+//    std::vector<RTPExtension*> exts;
+//    RTPSession session;
+//    session.ssrc = pkt->SSRC();
+//    session.pt = pkt->PayloadType();
+//    session.seq = pkt->SeqNum();
+//    int size = pkt->Serialize(data, exts, session);
+    Pool::Async(loop_, [pc=shared_from_this(), this, pkt](){
+        sendData(pkt->Data(), pkt->Size());
+    });
 }
 
 void PeerConnection::sendData(uint8_t *data, ssize_t size) {
-
+    VLOG(9) << "PeerConnection::sendData | id:" << id_ << " size:" << size;
+    uv_buf_t buf[1];
+    buf[0].len = size;
+    buf[0].base = (char*)data;
+    auto st = new uv_udp_send_t;
+    uv_udp_send(st, &socket_, buf, 1, (const sockaddr*)&lastRemote_, send_u);
+    free(data);
 }
 
 json createBaseSdp() {
@@ -242,7 +290,7 @@ std::string PeerConnection::CreateAnswer(const std::string &offer) {
                     {"component", 1},
                     {"foundation", "1"},
                     {"ip", Server::GetInstance().GetCandidateIp()},
-                    {"port", Server::GetInstance().GetPort()},
+                    {"port", port_},
                     {"priority", 33554431},
                     {"transport", "UDP"},
                     {"type", "host"}
@@ -268,12 +316,19 @@ std::string PeerConnection::CreateAnswer(const std::string &offer) {
             }
             if (media["type"] == "audio") {
                 remoteStream_->AudioSSRC() = ssrc;
+            } else if (media["type"] == "video") {
+                remoteStream_->VideoSSRC() = ssrc;
             }
         }
         remoteUsername_ = media["iceUfrag"];
         remotePassword_ = media["icePwd"];
         answerMediaJ.push_back(answerMedia);
     }
+
+    if (remoteStream_) {
+        callback_(remoteStream_);
+    }
+
     answerJ["media"] = answerMediaJ;
     auto answer = sdptransform::write(answerJ);
     auto s = shared_from_this();

@@ -17,15 +17,33 @@ int main(int argc, char* argv[]) {
     }).detach();
 
     httplib::Server svr;
-    svr.Post("/post", [](const httplib::Request& req, httplib::Response& res) {
+    std::shared_ptr<MediaStream> stream;
+    svr.Post("/post", [&stream](const httplib::Request& req, httplib::Response& res) {
         auto offer = req.body;
         auto pc1 = std::make_shared<PeerConnection>();
+        pc1->AddRemoteStreamListener([&stream](std::shared_ptr<MediaStream> _s) {
+            LOG(INFO) << "onstream";
+            stream.swap(_s);
+        });
+
         auto answer = pc1->CreateAnswer(offer);
+        pc1->Start();
         std::cout << req.body << std::endl;
         res.set_header("Access-Control-Allow-Origin", "*");
-//        res.set_header("Access-Control-Allow-Method", "*");
         res.set_content(answer, "text/plain");
     });
+
+    svr.Post("/play", [&stream](const httplib::Request& req, httplib::Response& res) {
+        auto offer = req.body;
+        auto pc2 = std::make_shared<PeerConnection>();
+        pc2->AddStream(stream);
+        auto answer = pc2->CreateAnswer(offer);
+        pc2->Start();
+        std::cout << req.body << std::endl;
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_content(answer, "text/plain");
+    });
+
     svr.Options("/post", [](const httplib::Request& req, httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
         res.set_content("ok", "text/plain");

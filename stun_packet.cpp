@@ -111,13 +111,13 @@ int StunPacket::Serialize(uint8_t *&data, const std::string &pwd) {
 //    }
 
     // write xor ip
-    {
-        int attrLen = 8;
-        webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+StunHeaderSize+attrSize, 0x20);
-        webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+StunHeaderSize+attrSize+2, 8);
-        webrtc::ByteWriter<uint64_t>::WriteBigEndian(data+StunHeaderSize+attrSize+AttrHeaderSize, 0x0001cd86e1ba8b43);
-        attrSize += AttrHeaderSize + attrLen;
-    }
+//    {
+//        int attrLen = 8;
+//        webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+StunHeaderSize+attrSize, 0x20);
+//        webrtc::ByteWriter<uint16_t>::WriteBigEndian(data+StunHeaderSize+attrSize+2, 8);
+//        webrtc::ByteWriter<uint64_t>::WriteBigEndian(data+StunHeaderSize+attrSize+AttrHeaderSize, 0x0001cd86e1ba8b43);
+//        attrSize += AttrHeaderSize + attrLen;
+//    }
 
     // write length, 4 attribute header and 20 byte HMAC-SHA1
     attrSize += AttrHeaderSize + HMACSize + AttrHeaderSize + FingerprintSize; // add message integrity

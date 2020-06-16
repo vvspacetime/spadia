@@ -6,26 +6,49 @@
 </head>
 <body>
 <button onclick="start()">start</button>
+<video id="video" playsinline autoplay></video>
 </body>
 <script>
     async function start() {
-        const stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
-        pc1 = new RTCPeerConnection();
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true, video: true});
+        const pc1 = new RTCPeerConnection();
         stream.getTracks().forEach(track => pc1.addTrack(track, stream));
-        pc1.createOffer().then(async(offer) => {
-            pc1.setLocalDescription(offer);
-            const res = await fetch('http://127.0.0.1:8080/post', {
-                method: 'POST',
-                mode: 'cors',
-                body: offer.sdp,
-            })
-            const answer = await res.text()
-            console.log(answer)
-            pc1.setRemoteDescription({
-                "sdp": answer,
-                "type": "answer"
-            })
+
+        const offer = await pc1.createOffer();
+        await pc1.setLocalDescription(offer);
+        const res = await fetch("http://127.0.0.1:8080/post", {
+            method: "POST",
+            mode: "cors",
+            body: offer.sdp,
         })
+        const answer = await res.text()
+        await pc1.setRemoteDescription({
+            "sdp": answer,
+            "type": "answer"
+        })
+
+
+        const pc2 = new RTCPeerConnection();
+        pc2.addTransceiver("audio", { direction: "recvonly" })
+        pc2.addTransceiver("video", { direction: "recvonly" })
+
+
+        const offer2 = await pc2.createOffer();
+        await pc2.setLocalDescription(offer2)
+        const res2 = await fetch("http://127.0.0.1:8080/play", {
+            method: "POST",
+            mode: "cors",
+            body: offer2.sdp,
+        })
+        const answer2 = await res2.text()
+        pc2.addEventListener('track', (e) => {
+            document.getElementById("video").srcObject = e.streams[0];
+        });
+        await pc2.setRemoteDescription({
+            "sdp": answer2,
+            "type": "answer"
+        })
+
     }
 </script>
 </html>

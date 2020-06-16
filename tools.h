@@ -21,4 +21,9 @@ inline uint32_t pad32(uint32_t size)
     else
         return size;
 }
+
+inline uint16_t get_port(uint16_t sin_port) {
+    return ((sin_port & 0x00FF) << 8) | ((sin_port & 0xFF00) >> 8);
+}
+
 #endif //TEST_TOOLS_H

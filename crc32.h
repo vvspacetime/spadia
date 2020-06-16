@@ -23,7 +23,7 @@ public:
         return crc32;
     }
 
-    uint32_t CalculateXORCRC(const uint8_t* data, uint32_t size) {
+    uint32_t CalculateXORCRC(const uint8_t* data, uint32_t size) const {
         uint32_t crc = 0;
         uint32_t c = crc ^ 0xFFFFFFFF;
         for (uint32_t i = 0; i < size; ++i)

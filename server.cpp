@@ -21,7 +21,7 @@ static void read_s(uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf, const s
 }
 
 static void send_u(uv_udp_send_t* req, int status) {
-
+    delete req;
 }
 
 
@@ -30,6 +30,7 @@ Server::Server(uint32_t port) : port_(port) {
     loop_ = Pool::GetInstance().GetLoop();
     socket_.data = this;
     // todo run in loop
+    return;
     Pool::Async(loop_, [=]() {
         uv_udp_init(loop_, &socket_);
         uv_ip4_addr("0.0.0.0", port, &sockAddr_);
@@ -48,7 +49,7 @@ void Server::OnData(char *base, size_t len, sockaddr_in *remote) {
     auto p = StunPacket::Parse((uint8_t*)base, len);
     char ipName[40];
     uv_ip4_name(remote, ipName, 40);
-    VLOG(9) << "read_s from:" << ipName << " port:" << remote->sin_port << " len:" << len << " username:" << p->GetUsername();
+    VLOG(9) << "read_s from:" << ipName << " port:" << get_port(remote->sin_port) << " len:" << len << " username:" << p->GetUsername();
     auto q = p->MakeResponse();
 
     auto it = pcTable.find(p->GetUsername());
@@ -56,12 +57,13 @@ void Server::OnData(char *base, size_t len, sockaddr_in *remote) {
         uint8_t* data;
         int size = q->Serialize(data, it->second->GetLocalPassword());
         uv_buf_t buf[1];
+        auto st = new uv_udp_send_t;
         buf[0].len = size;
         buf[0].base = (char*)data;
-        uv_udp_send(&sendT_, &socket_, buf, 1, (const sockaddr *) remote, send_u);
+        uv_udp_send(st, &socket_, buf, 1, nullptr, send_u);
         // libuv will copy it
         free(data);
-//        it->second->Active(remote);
+        it->second->Active(remote);
     } else {
         VLOG(0) << "can't find pc with stun username:" << p->GetUsername();
     }
