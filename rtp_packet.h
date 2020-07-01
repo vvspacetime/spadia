@@ -5,10 +5,10 @@
 #include <byte_io.h>
 #include <iostream>
 #include <vector>
-
+#include "tools.h"
+#include <map>
 struct RTPExtension {
-    bool oneByte;
-    uint8_t header;
+    uint8_t id;
     uint8_t length;
     uint8_t* data;
 };
@@ -23,7 +23,7 @@ struct RTPSession {
 
 class RTPPacket {
 public:
-    RTPPacket() {
+    RTPPacket(): recvTimeMS_(get_time_ms()) {
 
     }
 
@@ -39,8 +39,25 @@ public:
     uint8_t PayloadType() { return payloadType_; }
     uint32_t SSRC() { return ssrc_; }
     uint16_t SeqNum() { return seqNum_; }
+
     uint8_t *Data() { return data_;}
     int Size() { return size_; }
+
+public:
+    uint32_t ExtSeqNum() { return uint32_t (seqCycle_ << 16u) | seqNum_; }
+    uint16_t SetSeqCycle(uint16_t cycle) { seqCycle_ = cycle; };
+    uint64_t RecvTimeMS() { return recvTimeMS_; }
+
+    bool GetTransportCCNum(uint8_t id, uint16_t& num) {
+        auto it = exts_.find(id);
+        if (it != exts_.end()) {
+            num = webrtc::ByteReader<uint16_t>::ReadBigEndian(it->second.data);
+            return true;
+        }
+        return false;
+    };
+    // extensions
+
 private:
     int payloadOffset_;
     int payloadSize_;
@@ -52,6 +69,10 @@ private:
     uint8_t *data_;
     int size_;
     int paddingSize_;
+    uint16_t seqCycle_ = 0;
+
+    uint64_t recvTimeMS_;
+    std::map<uint16_t, RTPExtension> exts_;
 };
 
 

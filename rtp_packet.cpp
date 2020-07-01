@@ -132,6 +132,7 @@ bool RTPPacket::Parse(uint8_t *data, int size) {
                 if (profile == kOneByteExtensionProfileId) {
                     id = data[extension_offset + extensions_size_] >> 4;
                     length = 1 + (data[extension_offset + extensions_size_] & 0xf);
+                    exts_[id] = RTPExtension{ (uint8_t)id, length, (uint8_t*)data + extension_offset + 1};
                     if (id == kOneByteHeaderExtensionReservedId ||
                         (id == kPaddingId && length != 1)) {
                         break;
@@ -139,6 +140,7 @@ bool RTPPacket::Parse(uint8_t *data, int size) {
                 } else {
                     id = data[extension_offset + extensions_size_];
                     length = data[extension_offset + extensions_size_ + 1];
+                    exts_[id] = RTPExtension{ (uint8_t)id, length, (uint8_t*)data + extension_offset + 2};
                 }
 
                 if (extensions_size_ + extension_header_length + length >

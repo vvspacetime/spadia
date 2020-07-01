@@ -1,8 +1,6 @@
 #include "tools.h"
 
-uint64_t get_time_ms() {
-    return uv_hrtime()/1e+6;
-}
+
 
 std::string uuid() {
     char buf[64] = { 0 };

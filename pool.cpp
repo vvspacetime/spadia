@@ -3,7 +3,7 @@
 #include <thread>
 
 void timer_cb(uv_timer_t* handle) {
-    LOG(INFO) << "loop running...";
+    LOG(INFO) << "loop running...:" << *(int*)handle->loop->data;
 }
 
 void async_cb(uv_async_t* handle) {
@@ -21,7 +21,7 @@ void run(void* arg) {
     uv_loop_t* loop = (uv_loop_t*)arg;
     uv_timer_init(loop, &timer);
     uv_timer_start(&timer, timer_cb, 1000, 60*1000);
-    LOG(INFO) << "loop running" << *(int*)loop->data;
+    LOG(INFO) << "loop running:" << *(int*)loop->data;
     uv_run(loop, UV_RUN_DEFAULT);
 }
 

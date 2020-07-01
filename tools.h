@@ -5,7 +5,23 @@
 #include <uuid/uuid.h>
 #include <string>
 
-uint64_t get_time_ms();
+
+
+// since system start time
+inline uint64_t get_time_ms() {
+    return uv_hrtime()/1e+6;
+}
+
+// since UTC1970-1-1 0:0:0
+inline uint64_t get_time_utc_us() {
+    struct timeval now;
+    gettimeofday(&now,0);
+    return (((uint64_t)now.tv_sec)*1E6 + now.tv_usec);
+}
+
+inline uint64_t get_time_utc_ms() {
+    return get_time_utc_us()/1e+3;
+}
 
 std::string uuid();
 

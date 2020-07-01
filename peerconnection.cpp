@@ -25,6 +25,11 @@ void read_u(uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf, const struct s
 }
 
 void send_u(uv_udp_send_t* req, int status) {
+    if (req->data) {
+        free(req->data);
+        req->data = nullptr;
+    }
+
     delete req;
 }
 
@@ -43,8 +48,6 @@ PeerConnection::PeerConnection() {
     socket_.data = this;
     iceTimer.data = this;
     port_ = Server::GetInstance().GetPort();
-
-
 }
 
 
@@ -123,22 +126,19 @@ void PeerConnection::Destroy() {
 
 void PeerConnection::handleIncomingRTCPData(uint8_t *data, ssize_t size) {
     VLOG(9) << "PeerConnection::handleIncomingRTCPData | size:" << size << " id:" << id_;
-//    auto packets = RTCPPacket::Parse(data, size);
-//    for (auto& pkt : packets) {
-        // todo response xr
-        // todo transmit fir to sender
-//    }
+    std::vector<std::shared_ptr<RTCPPacketInterface>> packets;
+    int cnt = RTCPPacket::Parse(data, size, packets);
+    for (auto& p : packets) {
+        sessionManager_->OnRecvRTCP(p);
+    }
 }
 
 void PeerConnection::handleIncomingRTPData(uint8_t *data, ssize_t size) {
     VLOG(9) << "PeerConnection::handleIncomingRTPData | size:" << size << " id:" << id_;
     auto packet = std::make_shared<RTPPacket>();
     packet->Parse(data, size);
-
+    sessionManager_->OnRecvRTP(packet);
     remoteStream_->OnRTP(packet);
-    // todo send rr, rr = remoteStream.GetRR()
-    // todo send nack = remoteStream.GetNack()
-    // todo send transport feedback
 }
 
 
@@ -149,14 +149,14 @@ void PeerConnection::OnSocketData(char *data, ssize_t size, sockaddr_in* rmtSock
     if (StunPacket::IsStun((uint8_t*)data, size)) {
         auto p = StunPacket::Parse((uint8_t*)data, size);
         auto q = p->MakeResponse();
-        uint8_t* data;
-        int size = q->Serialize(data, localPassword_);
+        uint8_t* sendData;
+        auto sendSize = q->Serialize(sendData, localPassword_);
         uv_buf_t buf[1];
-        buf[0].len = size;
-        buf[0].base = (char*)data;
+        buf[0].len = sendSize;
+        buf[0].base = (char*)sendData;
         auto st = new uv_udp_send_t;
+        st->data = sendData;
         uv_udp_send(st, &socket_, buf, 1, (const sockaddr*)&lastRemote_, send_u);
-        free(data);
         return;
     }
 
@@ -187,8 +187,8 @@ void PeerConnection::sendData(uint8_t *data, ssize_t size) {
     buf[0].len = size;
     buf[0].base = (char*)data;
     auto st = new uv_udp_send_t;
+    st->data = data;
     uv_udp_send(st, &socket_, buf, 1, (const sockaddr*)&lastRemote_, send_u);
-    free(data);
 }
 
 json createBaseSdp() {
@@ -230,6 +230,8 @@ json getSSRCs(uint32_t ssrc, const std::string& msid, const std::string& cname, 
 }
 
 std::string PeerConnection::CreateAnswer(const std::string &offer) {
+    sessionManager_ = std::make_unique<RTPSessionManager>(loop_, weak_from_this());
+
     json offerJ = sdptransform::parse(offer);
     json answerJ = createBaseSdp();
     std::string msid = "*";
@@ -253,7 +255,7 @@ std::string PeerConnection::CreateAnswer(const std::string &offer) {
         json aExt;
         for (auto& e: media["ext"]) {
             // if set success
-            if (sessionManager.SetExtension(e["value"], e["uri"])) {
+            if (sessionManager_->SetExtension(e["value"], e["uri"])) {
                 aExt.push_back({
                     {"uri", e["uri"]},
                     {"value", e["value"]}
@@ -337,6 +339,7 @@ std::string PeerConnection::CreateAnswer(const std::string &offer) {
 }
 
 std::string PeerConnection::CreateOffer() {
+    sessionManager_ = std::make_unique<RTPSessionManager>(loop_, weak_from_this());
     json j;
     sdptransform::write(j);
     return "";

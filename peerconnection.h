@@ -15,6 +15,7 @@ constexpr uint64_t IceTimeout = 10000; // 10s
 
 
 class PeerConnection : public MediaStreamSink, public std::enable_shared_from_this<PeerConnection> {
+    friend RTPSessionManager;
 public:
     PeerConnection();
 
@@ -80,7 +81,7 @@ private:
     void handleIncomingRTCPData(uint8_t* data, ssize_t size);
     void handleIncomingRTPData(uint8_t* data, ssize_t size);
 private:
-    RTPSessionManager sessionManager;
+    std::unique_ptr<RTPSessionManager> sessionManager_;
     std::string id_;
     uv_udp_t socket_;
     uv_timer_t iceTimer;
